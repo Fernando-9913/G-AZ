@@ -159,6 +159,3 @@ ORDER BY stock ASC;
 
 git remote add origin https://github.com/Fernando-9913/G-AZ.git
 git push -u origin master
-https://github.com/TU_USUARIO/nombre-del-repositorio
-
-
