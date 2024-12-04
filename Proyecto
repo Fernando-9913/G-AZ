@@ -1,0 +1,164 @@
+git init
+git add archivo.sql
+git commit -m CREATE DATABASE IF NOT EXISTS GAZ;
+USE GAZ;
+
+-- Tabla de proveedores
+CREATE TABLE proveedores (
+    id_proveedor INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(100) NOT NULL,
+    contacto VARCHAR(100),
+    telefono VARCHAR(15),
+    direccion VARCHAR(255)
+);
+
+-- Tabla de productos
+CREATE TABLE productos (
+    id_producto INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255) DEFAULT '',
+    precio DECIMAL(10, 2) CHECK (precio > 0),
+    stock INT NOT NULL CHECK (stock >= 0),
+    proveedor_id INT,
+    activo TINYINT DEFAULT 1, -- Campo para indicar si el producto está activo
+    FOREIGN KEY (proveedor_id) REFERENCES proveedores(id_proveedor)
+);
+
+-- Tabla de clientes
+CREATE TABLE clientes (
+    id_cliente INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    telefono VARCHAR(15),
+    direccion VARCHAR(255)
+);
+
+-- Tabla de pedidos
+CREATE TABLE pedidos (
+    id_pedido INT PRIMARY KEY AUTO_INCREMENT,
+    id_cliente INT,
+    fecha_pedido DATE,
+    total DECIMAL(10, 2),
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE
+);
+
+-- Tabla de detalles de pedidos (productos por pedido)
+CREATE TABLE detalles_pedido (
+    id_detalle INT PRIMARY KEY AUTO_INCREMENT,
+    id_pedido INT,
+    id_producto INT,
+    cantidad INT CHECK (cantidad > 0),
+    precio DECIMAL(10, 2) CHECK (precio > 0),
+    FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido) ON DELETE CASCADE,
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    CONSTRAINT unq_producto_pedido UNIQUE (id_pedido, id_producto) -- Evitar duplicados
+);
+
+-- Trigger para evitar stock negativo
+DELIMITER //
+
+CREATE TRIGGER validar_stock BEFORE INSERT ON detalles_pedido
+FOR EACH ROW
+BEGIN
+    DECLARE cantidad_stock INT;
+    SELECT stock INTO cantidad_stock FROM productos WHERE id_producto = NEW.id_producto;
+    IF cantidad_stock < NEW.cantidad THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No hay suficiente stock';
+    END IF;
+END //
+
+DELIMITER ;
+
+-- Trigger para actualizar el stock después de un pedido
+DELIMITER //
+
+CREATE TRIGGER actualizar_stock AFTER INSERT ON detalles_pedido
+FOR EACH ROW
+BEGIN
+    UPDATE productos
+    SET stock = stock - NEW.cantidad
+    WHERE id_producto = NEW.id_producto;
+END //
+
+DELIMITER ;
+
+-- Trigger para actualizar el total del pedido
+DELIMITER //
+
+CREATE TRIGGER actualizar_total_pedido AFTER INSERT ON detalles_pedido
+FOR EACH ROW
+BEGIN
+    UPDATE pedidos
+    SET total = (SELECT SUM(cantidad * precio)
+                 FROM detalles_pedido
+                 WHERE id_pedido = NEW.id_pedido)
+    WHERE id_pedido = NEW.id_pedido;
+END //
+
+DELIMITER ;
+
+-- Inserción de proveedores
+INSERT INTO proveedores (nombre, contacto, telefono, direccion) VALUES
+('Proveedores Gamesa', 'Carlos López', '555-1234', 'Calle Uno, Ciudad A'),
+('Bebidas Arizona', 'Ana García', '555-5678', 'Avenida Central, Ciudad B'),
+('Distribuciones Mix', 'Pedro Sánchez', '555-8765', 'Calle Secundaria, Ciudad C');
+
+-- Inserción de productos
+INSERT INTO productos (nombre, descripcion, precio, stock, proveedor_id) VALUES
+('Galletas de Mango', 'Galletas de sabor mango Arizona', 15, 500, 1),
+('Arizona Zenso', 'Bebida sabor emperador en lata', 18, 300, 2),
+('Galletas de Sandía', 'Galletas con trozos chiclosos de sandía', 16, 160, 1),
+('Té Verde y Marias', 'Bebida refrescante de té verde con sabor limón y galletas María', 20, 200, 3),
+('Mamuts de Ponche', 'Sandwich Mamut sabor ponche de frutas', 17, 600, 1);
+
+-- Inserción de clientes
+INSERT INTO clientes (nombre, email, telefono, direccion) VALUES
+('Juan Pérez', 'juan.perez@example.com', '555-1111', 'Calle de las Flores, Ciudad X'),
+('Laura Gómez', 'laura.gomez@example.com', '555-2222', 'Avenida del Sol, Ciudad Y');
+
+-- Ejemplo de inserción de pedidos
+INSERT INTO pedidos (id_cliente, fecha_pedido, total) VALUES
+(1, '2024-12-01', 450),  -- Pedido realizado por Juan Pérez
+(2, '2024-12-02', 340);  -- Pedido realizado por Laura Gómez
+
+-- Ejemplo de inserción de detalles de pedidos
+INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio) VALUES
+(1, 1, 10, 15),  -- Juan Pérez compró 10 Galletas de Mango
+(1, 3, 5, 16),   -- Juan Pérez compró 5 Galletas de Sandía
+(2, 2, 12, 18),  -- Laura Gómez compró 12 Arizona Zenso
+(2, 4, 8, 20);   -- Laura Gómez compró 8 Té Verde y Marias
+
+-- Consulta de productos más vendidos
+SELECT p.nombre, SUM(dp.cantidad) AS total_vendido
+FROM detalles_pedido dp
+JOIN productos p ON dp.id_producto = p.id_producto
+GROUP BY p.nombre
+ORDER BY total_vendido DESC
+LIMIT 5;
+
+-- Consulta de clientes con mayor gasto
+SELECT c.nombre, SUM(pe.total) AS gasto_total
+FROM pedidos pe
+JOIN clientes c ON pe.id_cliente = c.id_cliente
+GROUP BY c.nombre
+ORDER BY gasto_total DESC
+LIMIT 5;
+
+-- Consulta de proveedores con mayor cantidad de productos suministrados
+SELECT pr.nombre, COUNT(p.id_producto) AS productos_suministrados
+FROM proveedores pr
+JOIN productos p ON pr.id_proveedor = p.proveedor_id
+GROUP BY pr.nombre
+ORDER BY productos_suministrados DESC;
+
+-- Consulta para productos con bajo stock
+SELECT nombre, stock
+FROM productos
+WHERE stock < 100
+ORDER BY stock ASC;
+
+git remote add origin https://github.com/Fernando-9913/G-AZ.git
+git push -u origin master
+https://github.com/TU_USUARIO/nombre-del-repositorio
+
+
